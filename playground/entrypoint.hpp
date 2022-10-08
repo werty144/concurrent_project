@@ -28,6 +28,8 @@
 /** Your lock class.
 **/
 class Lock final {
+private:
+    std::atomic<bool> flag;
 public:
     /** Deleted copy/move constructor/assignment.
     **/

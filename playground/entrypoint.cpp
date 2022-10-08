@@ -25,6 +25,7 @@
 #include <atomic>
 #include <iostream>
 #include <mutex>
+#include "pthread.h"
 
 // Internal headers
 #include "entrypoint.hpp"
@@ -38,7 +39,7 @@
 /** Lock default constructor.
 **/
 Lock::Lock() {
-    // ...
+    flag.store(false);
 }
 
 /** Lock destructor.
@@ -50,13 +51,16 @@ Lock::~Lock() {
 /** [thread-safe] Acquire the lock, block if it is already acquired.
 **/
 void Lock::lock() {
-    // ...
+    bool expected = false;
+    while (!flag.compare_exchange_strong(expected, true)) {
+        expected = false;
+    }
 }
 
 /** [thread-safe] Release the lock, assuming it is indeed held by the caller.
 **/
 void Lock::unlock() {
-    // ...
+    flag.store(false);
 }
 
 // -------------------------------------------------------------------------- //

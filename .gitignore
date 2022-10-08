@@ -28,3 +28,7 @@
 
 # And of course, we do not leak the solution proposed by the TA :)
 solution/
+
+# My local 
+cmake-build-debug/
+.idea/
