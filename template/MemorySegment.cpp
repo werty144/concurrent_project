@@ -11,7 +11,7 @@
 MemorySegment::MemorySegment(std::size_t size, std::size_t align) {
     data = (char*)aligned_alloc(align, size);
     if (data == nullptr) {
-        throw memory_segment_creation_exception ();
+        throw memory_segment_creation_exception();
     }
     memset(data,  0, size);
 
@@ -23,8 +23,3 @@ MemorySegment::MemorySegment(std::size_t size, std::size_t align) {
     }
 }
 
-MemorySegment::~MemorySegment() {
-    std::cout << "Destructor!" << std::endl;
-    free(data);
-    delete words;
-}

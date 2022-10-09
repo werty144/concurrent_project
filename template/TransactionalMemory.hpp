@@ -7,15 +7,15 @@
 
 #include <exception>
 #include "atomic"
+#include "MemorySegment.hpp"
 
 typedef std::exception tm_creation_exception;
 
 class TransactionalMemory {
-private:
-    char* start;
+public:
+    MemorySegment* start;
     size_t size;
     size_t align;
-public:
     std::atomic_int global_clock{};
     TransactionalMemory(std::size_t size, std::size_t align);
     ~TransactionalMemory();

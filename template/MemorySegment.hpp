@@ -17,7 +17,6 @@ public:
     char* data;
     Word* words;
     MemorySegment(std::size_t size, std::size_t align);
-    ~MemorySegment();
 };
 
 #endif //CONCURRENT_PROJECT_MEMORYSEGMENT_HPP

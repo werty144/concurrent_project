@@ -48,34 +48,34 @@ shared_t tm_create(size_t size, size_t align) noexcept {
 **/
 void tm_destroy(shared_t shared) noexcept {
     auto* tm = (TransactionalMemory*) shared;
-
+//    TODO implement segments structure to keep track of non-freed segments
 }
 
 /** [thread-safe] Return the start address of the first allocated segment in the shared memory region.
  * @param shared Shared memory region to query
  * @return Start address of the first allocated segment
 **/
-void* tm_start(shared_t unused(shared)) noexcept {
-    // TODO: tm_start(shared_t)
-    return NULL;
+void* tm_start(shared_t shared) noexcept {
+    auto* tm = (TransactionalMemory*) shared;
+    return tm->start->words;
 }
 
 /** [thread-safe] Return the size (in bytes) of the first allocated segment of the shared memory region.
  * @param shared Shared memory region to query
  * @return First allocated segment size
 **/
-size_t tm_size(shared_t unused(shared)) noexcept {
-    // TODO: tm_size(shared_t)
-    return 0;
+size_t tm_size(shared_t shared) noexcept {
+    auto* tm = (TransactionalMemory*) shared;
+    return tm->size;
 }
 
 /** [thread-safe] Return the alignment (in bytes) of the memory accesses on the given shared memory region.
  * @param shared Shared memory region to query
  * @return Alignment used globally
 **/
-size_t tm_align(shared_t unused(shared)) noexcept {
-    // TODO: tm_align(shared_t)
-    return 0;
+size_t tm_align(shared_t shared) noexcept {
+    auto* tm = (TransactionalMemory*) shared;
+    return tm->align;
 }
 
 /** [thread-safe] Begin a new transaction on the given shared memory region.

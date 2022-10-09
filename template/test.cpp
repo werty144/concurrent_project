@@ -1,10 +1,14 @@
 #include <iostream>
 #include "MemorySegment.hpp"
 #include "tm.hpp"
+#include "TransactionalMemory.hpp"
 #include <cstring>
+#include <cstddef>
 
 
 int main() {
-    MemorySegment ms = MemorySegment(4, 2);
-    memset(ms.words[1].data, 1, 2);
+    auto* tm = new TransactionalMemory(4, 2);
+    Word* start = (Word*)tm_start(tm);
+    memset(start[1].data, 2, 2);
+
 }
