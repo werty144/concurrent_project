@@ -21,7 +21,7 @@
 //#endif
 
 // External headers
-
+#include "iostream"
 // Internal headers
 #include <tm.hpp>
 #include "TransactionalMemory.hpp"
@@ -35,6 +35,7 @@
  * @return Opaque shared memory region handle, 'invalid_shared' on failure
 **/
 shared_t tm_create(size_t size, size_t align) noexcept {
+    std::cout << "Creating!" << std::endl;
     TransactionalMemory* tm;
     try {
         tm = new TransactionalMemory(size, align);
@@ -52,13 +53,14 @@ void tm_destroy(shared_t shared) noexcept {
 //    TODO implement segments structure to keep track of non-freed segments
 }
 
-/** [thread-safe] Return the start address of the first allocated segment in the shared memory region.
+/** [thread-safe] Return the start_segment address of the first allocated segment in the shared memory region.
  * @param shared Shared memory region to query
  * @return Start address of the first allocated segment
 **/
 void* tm_start(shared_t shared) noexcept {
+    std::cout << "Starting!" << std::endl;
     auto* tm = (TransactionalMemory*) shared;
-    return tm->start->data;
+    return tm->start_segment->data;
 }
 
 /** [thread-safe] Return the size (in bytes) of the first allocated segment of the shared memory region.
@@ -80,11 +82,12 @@ size_t tm_align(shared_t shared) noexcept {
 }
 
 /** [thread-safe] Begin a new transaction on the given shared memory region.
- * @param shared Shared memory region to start a transaction on
+ * @param shared Shared memory region to start_segment a transaction on
  * @param is_ro  Whether the transaction is read-only
  * @return Opaque transaction ID, 'invalid_tx' on failure
 **/
 tx_t tm_begin(shared_t shared, bool is_ro) noexcept {
+    std::cout << "Beginning!" << std::endl;
     auto* tm = (TransactionalMemory*) shared;
     auto* transaction = new Transaction(tm, is_ro);
     return (tx_t) transaction;
@@ -103,9 +106,9 @@ bool tm_end(shared_t unused(shared), tx_t unused(tx)) noexcept {
 /** [thread-safe] Read operation in the given transaction, source in the shared region and target in a private region.
  * @param shared Shared memory region associated with the transaction
  * @param tx     Transaction to use
- * @param source Source start address (in the shared region)
+ * @param source Source start_segment address (in the shared region)
  * @param size   Length to copy (in bytes), must be a positive multiple of the alignment
- * @param target Target start address (in a private region)
+ * @param target Target start_segment address (in a private region)
  * @return Whether the whole transaction can continue
 **/
 bool tm_read(shared_t unused(shared), tx_t unused(tx), void const* unused(source), size_t unused(size), void* unused(target)) noexcept {
@@ -116,9 +119,9 @@ bool tm_read(shared_t unused(shared), tx_t unused(tx), void const* unused(source
 /** [thread-safe] Write operation in the given transaction, source in a private region and target in the shared region.
  * @param shared Shared memory region associated with the transaction
  * @param tx     Transaction to use
- * @param source Source start address (in a private region)
+ * @param source Source start_segment address (in a private region)
  * @param size   Length to copy (in bytes), must be a positive multiple of the alignment
- * @param target Target start address (in the shared region)
+ * @param target Target start_segment address (in the shared region)
  * @return Whether the whole transaction can continue
 **/
 bool tm_write(shared_t unused(shared), tx_t unused(tx), void const* unused(source), size_t unused(size), void* unused(target)) noexcept {

@@ -14,9 +14,11 @@ typedef std::exception memory_segment_creation_exception;
 
 class MemorySegment {
 public:
+    std::size_t size;
     char* data;
     Word* words;
     MemorySegment(std::size_t size, std::size_t align);
+    bool contains_address(void* addr);
 };
 
 #endif //CONCURRENT_PROJECT_MEMORYSEGMENT_HPP

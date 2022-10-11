@@ -13,12 +13,13 @@ typedef std::exception tm_creation_exception;
 
 class TransactionalMemory {
 public:
-    MemorySegment* start;
+    MemorySegment* start_segment;
     size_t size;
     size_t align;
     std::atomic_int global_clock{};
     TransactionalMemory(std::size_t size, std::size_t align);
     ~TransactionalMemory();
+    Word* get_word(void* word_address);
 };
 
 
