@@ -58,7 +58,6 @@ void tm_destroy(shared_t shared) noexcept {
  * @return Start address of the first allocated segment
 **/
 void* tm_start(shared_t shared) noexcept {
-    std::cout << "Starting!" << std::endl;
     auto* tm = (TransactionalMemory*) shared;
     return tm->start_segment->data;
 }
@@ -87,7 +86,6 @@ size_t tm_align(shared_t shared) noexcept {
  * @return Opaque transaction ID, 'invalid_tx' on failure
 **/
 tx_t tm_begin(shared_t shared, bool is_ro) noexcept {
-    std::cout << "Beginning!" << std::endl;
     auto* tm = (TransactionalMemory*) shared;
     auto* transaction = new Transaction(tm, is_ro);
     return (tx_t) transaction;
@@ -111,9 +109,8 @@ bool tm_end(shared_t unused(shared), tx_t unused(tx)) noexcept {
  * @param target Target start_segment address (in a private region)
  * @return Whether the whole transaction can continue
 **/
-bool tm_read(shared_t unused(shared), tx_t unused(tx), void const* unused(source), size_t unused(size), void* unused(target)) noexcept {
-    // TODO: tm_read(shared_t, tx_t, void const*, size_t, void*)
-    return false;
+bool tm_read(shared_t unused(shared), tx_t tx, void const* source, size_t size, void* target) noexcept {
+    return ((Transaction*) tx)->read(source, size, target);
 }
 
 /** [thread-safe] Write operation in the given transaction, source in a private region and target in the shared region.
@@ -124,9 +121,9 @@ bool tm_read(shared_t unused(shared), tx_t unused(tx), void const* unused(source
  * @param target Target start_segment address (in the shared region)
  * @return Whether the whole transaction can continue
 **/
-bool tm_write(shared_t unused(shared), tx_t unused(tx), void const* unused(source), size_t unused(size), void* unused(target)) noexcept {
-    // TODO: tm_write(shared_t, tx_t, void const*, size_t, void*)
-    return false;
+bool tm_write(shared_t unused(shared), tx_t tx, void const* source, size_t size, void* target) noexcept {
+    ((Transaction*) tx)->write(source, size, target);
+    return true;
 }
 
 /** [thread-safe] Memory allocation in the given transaction.

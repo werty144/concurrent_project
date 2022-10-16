@@ -19,10 +19,19 @@ public:
     TransactionalMemory* tm;
     int read_version;
     std::vector<void*> read_set{};
-    std::vector<Write> write_set{}; // pointer from, pointer to
+    std::vector<Write> write_set{};
+    std::vector<void*> write_buffers{};
+    void* write_buffer;
+    int words_in_buffer;
+
     Transaction(TransactionalMemory* tm, bool is_ro);
-    bool read(void* source, std::size_t size, void* target);
-    bool validate_can_read(void* word_data);
+    bool read(void const* source, std::size_t size, void* target);
+    void write(void const* source, std::size_t size, void* target);
+    bool end();
+private:
+    bool valid_read(void* word_data) const;
+    void clean_up();
+    bool lock_write_set();
 };
 
 
