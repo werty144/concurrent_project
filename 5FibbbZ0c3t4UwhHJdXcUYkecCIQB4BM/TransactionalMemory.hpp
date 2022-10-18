@@ -16,7 +16,7 @@ public:
     MemorySegment* start_segment;
     size_t size;
     size_t align;
-    std::atomic_int global_clock{};
+    std::atomic_int global_clock{0};
     TransactionalMemory(std::size_t size, std::size_t align);
     ~TransactionalMemory();
     Word* get_word(void* word_address);

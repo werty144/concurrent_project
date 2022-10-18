@@ -12,6 +12,6 @@ struct spinlock {
     bool lock() noexcept;
     void unlock() noexcept;
     bool try_lock() noexcept;
-}
+};
 
 #endif //CONCURRENT_PROJECT_SPINLOCK_H

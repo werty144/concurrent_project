@@ -18,20 +18,28 @@ public:
     bool is_ro;
     TransactionalMemory* tm;
     int read_version;
+    int write_version;
     std::vector<void*> read_set{};
     std::vector<Write> write_set{};
     std::vector<void*> write_buffers{};
     void* write_buffer;
     int words_in_buffer;
+    int writes_n = 0;
 
     Transaction(TransactionalMemory* tm, bool is_ro);
     bool read(void const* source, std::size_t size, void* target);
     void write(void const* source, std::size_t size, void* target);
     bool end();
+    void clean_up();
 private:
     bool valid_read(void* word_data) const;
-    void clean_up();
     bool lock_write_set();
+    int increment_and_fetch_global_clock();
+    bool validate_read_set();
+    void unlock_write_set();
+    void write_write_set_and_unlock();
+    bool read_only_read(void const* source, std::size_t size, void* target);
+    bool read_write_read(void const* source, std::size_t size, void* target);
 };
 
 

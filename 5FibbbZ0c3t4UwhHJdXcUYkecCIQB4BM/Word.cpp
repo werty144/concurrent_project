@@ -5,17 +5,20 @@
 
 #include "Word.hpp"
 
-void Word::set_lock_info() {
+bool Word::unlocked_or_locked_by_this_thread() const {
+    return !locked.load() || owner_id.load() == std::this_thread::get_id();
+}
+
+bool Word::try_lock() {
+    if (locked.load()) {
+        return false;
+    }
     locked.store(true);
     owner_id.store(std::this_thread::get_id());
 }
 
-void Word::clean_lock_info() {
+void Word::unlock() {
     locked.store(false);
     owner_id.store(std::thread::id());
-}
-
-bool Word::unlocked_or_locked_by_this_thread() const {
-    return !locked.load() || owner_id.load() == std::this_thread::get_id();
 }
 

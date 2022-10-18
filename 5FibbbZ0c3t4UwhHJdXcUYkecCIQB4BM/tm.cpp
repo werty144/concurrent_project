@@ -22,6 +22,7 @@
 
 // External headers
 #include "iostream"
+#include "sstream"
 // Internal headers
 #include <tm.hpp>
 #include "TransactionalMemory.hpp"
@@ -29,13 +30,20 @@
 #include "macros.h"
 #include "Transaction.hpp"
 
+using namespace std;
+
+//void log(const string& message) {
+//    stringstream stream;
+//    stream << this_thread::get_id() << ": " << message << endl;
+//    cout << stream.str();
+//}
+
 /** Create (i.e. allocate + init) a new shared memory region, with one first non-free-able allocated segment of the requested size and alignment.
  * @param size  Size of the first shared segment of memory to allocate (in bytes), must be a positive multiple of the alignment
  * @param align Alignment (in bytes, must be a power of 2) that the shared memory region must support
  * @return Opaque shared memory region handle, 'invalid_shared' on failure
 **/
 shared_t tm_create(size_t size, size_t align) noexcept {
-    std::cout << "Creating!" << std::endl;
     TransactionalMemory* tm;
     try {
         tm = new TransactionalMemory(size, align);
@@ -49,6 +57,7 @@ shared_t tm_create(size_t size, size_t align) noexcept {
  * @param shared Shared memory region to destroy, with no running transaction
 **/
 void tm_destroy(shared_t shared) noexcept {
+    cout << "destroy" << endl;
     auto* tm = (TransactionalMemory*) shared;
 //    TODO implement segments structure to keep track of non-freed segments
 }
@@ -96,9 +105,11 @@ tx_t tm_begin(shared_t shared, bool is_ro) noexcept {
  * @param tx     Transaction to end
  * @return Whether the whole transaction committed
 **/
-bool tm_end(shared_t unused(shared), tx_t unused(tx)) noexcept {
-    // TODO: tm_end(shared_t, tx_t)
-    return false;
+bool tm_end(shared_t unused(shared), tx_t tx) noexcept {
+    auto* transaction = (Transaction*) tx;
+    bool success = transaction->end();
+    transaction->clean_up();
+    return success;
 }
 
 /** [thread-safe] Read operation in the given transaction, source in the shared region and target in a private region.
@@ -110,7 +121,12 @@ bool tm_end(shared_t unused(shared), tx_t unused(tx)) noexcept {
  * @return Whether the whole transaction can continue
 **/
 bool tm_read(shared_t unused(shared), tx_t tx, void const* source, size_t size, void* target) noexcept {
-    return ((Transaction*) tx)->read(source, size, target);
+    auto* transaction = (Transaction*) tx;
+    bool success = transaction->read(source, size, target);
+    if (!success) {
+        transaction->clean_up();
+    }
+    return success;
 }
 
 /** [thread-safe] Write operation in the given transaction, source in a private region and target in the shared region.
@@ -122,6 +138,9 @@ bool tm_read(shared_t unused(shared), tx_t tx, void const* source, size_t size, 
  * @return Whether the whole transaction can continue
 **/
 bool tm_write(shared_t unused(shared), tx_t tx, void const* source, size_t size, void* target) noexcept {
+    stringstream s;
+    s << "write on " << tx << endl;
+    cout << s.str();
     ((Transaction*) tx)->write(source, size, target);
     return true;
 }
