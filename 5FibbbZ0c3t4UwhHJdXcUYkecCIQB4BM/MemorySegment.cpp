@@ -7,6 +7,7 @@
 
 #include "MemorySegment.hpp"
 #include "Word.hpp"
+#include "log.h"
 
 MemorySegment::MemorySegment(std::size_t size, std::size_t align) {
     this->size = size;
@@ -24,7 +25,6 @@ MemorySegment::MemorySegment(std::size_t size, std::size_t align) {
     }
 }
 
-bool MemorySegment::contains_address(void *addr) {
-    return data <= (char*) addr && (char*) addr<  data + size;
+bool MemorySegment::contains_address(const void *addr) const {
+    return data <= (char*) addr && (char*) addr <  data + size;
 }
-

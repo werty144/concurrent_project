@@ -10,11 +10,12 @@ bool Word::unlocked_or_locked_by_this_thread() const {
 }
 
 bool Word::try_lock() {
-    if (locked.load()) {
+    if (!unlocked_or_locked_by_this_thread()) {
         return false;
     }
     locked.store(true);
     owner_id.store(std::this_thread::get_id());
+    return true;
 }
 
 void Word::unlock() {

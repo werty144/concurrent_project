@@ -17,9 +17,12 @@ public:
     size_t size;
     size_t align;
     std::atomic_int global_clock{0};
+    char* reference_segment;
     TransactionalMemory(std::size_t size, std::size_t align);
     ~TransactionalMemory();
-    Word* get_word(void* word_address);
+    Word* get_word(void* word_address) const;
+    bool reference_read(void const* source, void* result_to_check) const;
+    void reference_write(void const* source, void* target) const;
 };
 
 

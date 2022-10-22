@@ -10,23 +10,16 @@
 #include "sstream"
 #include "iostream"
 #include "string"
+#include "log.h"
 
 using namespace std::chrono_literals;
 
-void log(const std::string& message) {
-    std::stringstream stream;
-    stream << std::this_thread::get_id() << ": " << message << std::endl;
-    std::cout << stream.str();
-}
 
 Transaction::Transaction(TransactionalMemory* tm, bool is_ro) {
     this->tm = tm;
     this->is_ro = is_ro;
     read_version = tm->global_clock.load();
     write_version = -1;
-    write_buffer = aligned_alloc(tm->align, 10 * tm->align);
-    write_buffers.emplace_back(write_buffer);
-    words_in_buffer = 0;
 }
 
 bool Transaction::read(void const* source, std::size_t size, void *target) {
@@ -43,40 +36,27 @@ bool Transaction::valid_read(void* word_data) const {
 }
 
 void Transaction::write(void const* source, std::size_t size, void *target) {
-    writes_n++;
-    std::stringstream s;
-    s << writes_n << " this: " << this;
-    log(s.str());
     std::size_t n_words = size / tm->align;
     for (std::size_t i = 0; i < n_words; i++) {
-        if (words_in_buffer == 10) {
-            write_buffer = aligned_alloc(tm->align, 10 * tm->align);
-            write_buffers.emplace_back(write_buffer);
-            words_in_buffer = 0;
-        }
-        memcpy((char*)write_buffer + i * tm->align,
+        void* new_word = malloc(tm->align);
+        memcpy(new_word,
                 (char*)source + i * tm->align,
                tm->align
                );
-        words_in_buffer++;
 
         write_set.emplace_back(
                 Write {
             (char*)target + i * tm->align,
-            (char*)write_buffer + i * tm->align
+            new_word
                 }
         );
     }
 }
 
 void Transaction::clean_up() {
-    std::stringstream s;
-    s << "clean " << this;
-    log(s.str());
-    for (void* buffer : write_buffers) {
-        free(buffer);
+    for (auto write : write_set) {
+        free(write.data);
     }
-    log("clean successful");
 }
 
 bool Transaction::end() {
@@ -110,7 +90,7 @@ bool Transaction::lock_write_set() {
     return true;
 }
 
-int Transaction::increment_and_fetch_global_clock() {
+void Transaction::increment_and_fetch_global_clock() {
     write_version = atomic_fetch_add(&tm->global_clock, 1) + 1;
 }
 

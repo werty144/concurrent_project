@@ -26,17 +26,13 @@
 // Internal headers
 #include <tm.hpp>
 #include "TransactionalMemory.hpp"
+#include "log.h"
 
 #include "macros.h"
 #include "Transaction.hpp"
 
 using namespace std;
 
-//void log(const string& message) {
-//    stringstream stream;
-//    stream << this_thread::get_id() << ": " << message << endl;
-//    cout << stream.str();
-//}
 
 /** Create (i.e. allocate + init) a new shared memory region, with one first non-free-able allocated segment of the requested size and alignment.
  * @param size  Size of the first shared segment of memory to allocate (in bytes), must be a positive multiple of the alignment
@@ -57,7 +53,6 @@ shared_t tm_create(size_t size, size_t align) noexcept {
  * @param shared Shared memory region to destroy, with no running transaction
 **/
 void tm_destroy(shared_t shared) noexcept {
-    cout << "destroy" << endl;
     auto* tm = (TransactionalMemory*) shared;
 //    TODO implement segments structure to keep track of non-freed segments
 }
@@ -120,7 +115,8 @@ bool tm_end(shared_t unused(shared), tx_t tx) noexcept {
  * @param target Target start_segment address (in a private region)
  * @return Whether the whole transaction can continue
 **/
-bool tm_read(shared_t unused(shared), tx_t tx, void const* source, size_t size, void* target) noexcept {
+bool tm_read(shared_t shared, tx_t tx, void const* source, size_t size, void* target) noexcept {
+    auto* tm = (TransactionalMemory*) shared;
     auto* transaction = (Transaction*) tx;
     bool success = transaction->read(source, size, target);
     if (!success) {
@@ -138,10 +134,9 @@ bool tm_read(shared_t unused(shared), tx_t tx, void const* source, size_t size, 
  * @return Whether the whole transaction can continue
 **/
 bool tm_write(shared_t unused(shared), tx_t tx, void const* source, size_t size, void* target) noexcept {
-    stringstream s;
-    s << "write on " << tx << endl;
-    cout << s.str();
-    ((Transaction*) tx)->write(source, size, target);
+    auto* transaction = (Transaction*)tx;
+    transaction->write(source, size, target);
+//    ((TransactionalMemory*)shared)->reference_write(source, target);
     return true;
 }
 
@@ -154,6 +149,7 @@ bool tm_write(shared_t unused(shared), tx_t tx, void const* source, size_t size,
 **/
 Alloc tm_alloc(shared_t unused(shared), tx_t unused(tx), size_t unused(size), void** unused(target)) noexcept {
     // TODO: tm_alloc(shared_t, tx_t, size_t, void**)
+    log("Alloc called");
     return Alloc::abort;
 }
 

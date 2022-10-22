@@ -21,10 +21,6 @@ public:
     int write_version;
     std::vector<void*> read_set{};
     std::vector<Write> write_set{};
-    std::vector<void*> write_buffers{};
-    void* write_buffer;
-    int words_in_buffer;
-    int writes_n = 0;
 
     Transaction(TransactionalMemory* tm, bool is_ro);
     bool read(void const* source, std::size_t size, void* target);
@@ -34,7 +30,7 @@ public:
 private:
     bool valid_read(void* word_data) const;
     bool lock_write_set();
-    int increment_and_fetch_global_clock();
+    void increment_and_fetch_global_clock();
     bool validate_read_set();
     void unlock_write_set();
     void write_write_set_and_unlock();
