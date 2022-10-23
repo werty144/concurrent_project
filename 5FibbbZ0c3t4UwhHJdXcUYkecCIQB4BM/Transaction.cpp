@@ -32,7 +32,7 @@ bool Transaction::read(void const* source, std::size_t size, void *target) {
 
 bool Transaction::valid_read(void* word_data) const {
     auto* word = tm->get_word(word_data);
-    return word->unlocked_or_locked_by_this_thread() && word->version <= read_version;
+    return word->unlocked_or_locked_by_this_thread() && word->version.load() <= read_version;
 }
 
 void Transaction::write(void const* source, std::size_t size, void *target) {
@@ -80,9 +80,13 @@ bool Transaction::lock_write_set() {
     for (std::size_t i = 0; i < write_set.size(); i++) {
         auto write = write_set[i];
         auto word = tm->get_word(write.destination);
+        if (word->locked_by_this_thread()) {
+            continue;
+        }
         if (!word->try_lock()) {
             for (std::size_t j = 0; j < i; j++) {
-                word->unlock();
+                auto word_to_unlock = tm->get_word(write_set[j].destination);
+                word_to_unlock->unlock();
             }
             return false;
         }
@@ -109,7 +113,9 @@ bool Transaction::validate_read_set() {
 void Transaction::unlock_write_set() {
     for (auto write : write_set) {
         auto word = tm->get_word(write.destination);
-        word->unlock();
+        if (word->locked_by_this_thread()) {
+            word->unlock();
+        }
     }
 }
 
@@ -118,8 +124,8 @@ void Transaction::write_write_set_and_unlock() {
         auto word = tm->get_word(write.destination);
         memcpy(write.destination, write.data, tm->align);
         word->version.store(write_version);
-        word->unlock();
     }
+    unlock_write_set();
 }
 
 bool Transaction::read_only_read(const void *source, std::size_t size, void *target) {

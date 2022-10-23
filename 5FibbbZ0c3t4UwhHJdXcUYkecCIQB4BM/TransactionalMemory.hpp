@@ -18,6 +18,8 @@ public:
     size_t align;
     std::atomic_int global_clock{0};
     char* reference_segment;
+    int total_txs = 0;
+    int failed_tx = 0;
     TransactionalMemory(std::size_t size, std::size_t align);
     ~TransactionalMemory();
     Word* get_word(void* word_address) const;

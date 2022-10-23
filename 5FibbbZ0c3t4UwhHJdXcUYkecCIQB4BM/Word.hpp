@@ -20,8 +20,7 @@ public:
 
     bool try_lock();
     void unlock();
-    void set_lock_info();
-    void clean_lock_info();
+    bool locked_by_this_thread() const;
     bool unlocked_or_locked_by_this_thread() const;
 };
 

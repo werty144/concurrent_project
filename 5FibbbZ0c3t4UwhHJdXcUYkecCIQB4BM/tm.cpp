@@ -91,6 +91,7 @@ size_t tm_align(shared_t shared) noexcept {
 **/
 tx_t tm_begin(shared_t shared, bool is_ro) noexcept {
     auto* tm = (TransactionalMemory*) shared;
+    tm->total_txs++;
     auto* transaction = new Transaction(tm, is_ro);
     return (tx_t) transaction;
 }
@@ -100,10 +101,17 @@ tx_t tm_begin(shared_t shared, bool is_ro) noexcept {
  * @param tx     Transaction to end
  * @return Whether the whole transaction committed
 **/
-bool tm_end(shared_t unused(shared), tx_t tx) noexcept {
+bool tm_end(shared_t shared, tx_t tx) noexcept {
+    auto* tm  = (TransactionalMemory*) shared;
     auto* transaction = (Transaction*) tx;
     bool success = transaction->end();
     transaction->clean_up();
+//    if (!success) {
+//        tm->failed_tx++;
+//        log("Fail rate: " + to_string(tm->failed_tx*1.0/tm->total_txs));
+//    } else {
+////        log("Success");
+//    }
     return success;
 }
 
@@ -121,6 +129,8 @@ bool tm_read(shared_t shared, tx_t tx, void const* source, size_t size, void* ta
     bool success = transaction->read(source, size, target);
     if (!success) {
         transaction->clean_up();
+//        tm->failed_tx++;
+//        log("Fail rate: " + to_string(tm->failed_tx*1.0/tm->total_txs));
     }
     return success;
 }
