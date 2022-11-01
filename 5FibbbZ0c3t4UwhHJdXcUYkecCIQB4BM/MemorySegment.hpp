@@ -8,7 +8,7 @@
 #include "atomic"
 #include <exception>
 
-#include "Word.hpp"
+#include "versioned_lock.h"
 
 typedef std::exception memory_segment_creation_exception;
 
@@ -16,7 +16,7 @@ class MemorySegment {
 public:
     std::size_t size;
     char* data;
-    Word* words;
+    VersionedLock* versioned_locks;
     MemorySegment(std::size_t size, std::size_t align);
     bool contains_address(const void* addr) const;
 };

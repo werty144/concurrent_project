@@ -6,7 +6,6 @@
 #include <iostream>
 
 #include "MemorySegment.hpp"
-#include "Word.hpp"
 #include "log.h"
 
 MemorySegment::MemorySegment(std::size_t size, std::size_t align) {
@@ -17,11 +16,10 @@ MemorySegment::MemorySegment(std::size_t size, std::size_t align) {
     }
     memset(data,  0, size);
 
-    size_t words_n = size / align;
-    this->words = new Word[words_n];
-    for (size_t i = 0; i < words_n; i++) {
-        words[i].data = data + i*align;
-        words[i].data_size = align;
+    size_t locks_n = size / align;
+    this->versioned_locks = new VersionedLock[locks_n];
+    for (size_t i = 0; i < locks_n; i++) {
+        versioned_locks[i].init();
     }
 }
 

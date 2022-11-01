@@ -7,6 +7,7 @@
 
 #include "TransactionalMemory.hpp"
 #include "vector"
+#include "set"
 
 struct Write {
     void* destination;
@@ -21,6 +22,7 @@ public:
     int write_version;
     std::vector<void*> read_set{};
     std::vector<Write> write_set{};
+    std::set<VersionedLock*> locked_set{};
 
     Transaction(TransactionalMemory* tm, bool is_ro);
     bool read(void const* source, std::size_t size, void* target);
@@ -28,7 +30,8 @@ public:
     bool end();
     void clean_up();
 private:
-    bool valid_read(void* word_data) const;
+    bool write_set_locked();
+    bool unlocked_and_old(VersionedLock* word_data) const;
     bool lock_write_set();
     void increment_and_fetch_global_clock();
     bool validate_read_set();
@@ -36,6 +39,8 @@ private:
     void write_write_set_and_unlock();
     bool read_only_read(void const* source, std::size_t size, void* target);
     bool read_write_read(void const* source, std::size_t size, void* target);
+    bool end_ro();
+    bool end_wr();
 };
 
 

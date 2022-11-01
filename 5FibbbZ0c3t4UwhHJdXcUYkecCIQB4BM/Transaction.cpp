@@ -12,8 +12,6 @@
 #include "string"
 #include "log.h"
 
-using namespace std::chrono_literals;
-
 
 Transaction::Transaction(TransactionalMemory* tm, bool is_ro) {
     this->tm = tm;
@@ -30,9 +28,9 @@ bool Transaction::read(void const* source, std::size_t size, void *target) {
    }
 }
 
-bool Transaction::valid_read(void* word_data) const {
-    auto* word = tm->get_word(word_data);
-    return word->unlocked_or_locked_by_this_thread() && word->version.load() <= read_version;
+bool Transaction::unlocked_and_old(VersionedLock* versioned_lock) const {
+    auto version_locked = versioned_lock->get_version_locked();
+    return !version_locked.second && version_locked.first <= read_version;
 }
 
 void Transaction::write(void const* source, std::size_t size, void *target) {
@@ -60,35 +58,24 @@ void Transaction::clean_up() {
 }
 
 bool Transaction::end() {
-    if (!lock_write_set()) {
-        return false;
+    if (is_ro) {
+        return end_ro();
+    } else {
+        return end_wr();
     }
-
-    increment_and_fetch_global_clock();
-
-    if (!validate_read_set()) {
-        unlock_write_set();
-        return false;
-    }
-
-    write_write_set_and_unlock();
-
-    return true;
 }
 
 bool Transaction::lock_write_set() {
-    for (std::size_t i = 0; i < write_set.size(); i++) {
-        auto write = write_set[i];
-        auto word = tm->get_word(write.destination);
-        if (word->locked_by_this_thread()) {
+    for (auto write : write_set) {
+        auto versioned_lock = tm->get_versioned_lock(write.destination);
+        if (locked_set.find(versioned_lock) != locked_set.end()) {
             continue;
         }
-        if (!word->try_lock()) {
-            for (std::size_t j = 0; j < i; j++) {
-                auto word_to_unlock = tm->get_word(write_set[j].destination);
-                word_to_unlock->unlock();
-            }
+        if (!versioned_lock->try_lock()) {
+            unlock_write_set();
             return false;
+        } else {
+            locked_set.insert(versioned_lock);
         }
     }
     return true;
@@ -105,25 +92,39 @@ bool Transaction::validate_read_set() {
 
     return std::all_of(read_set.begin(), read_set.end(), [this](void* word_pointer)
     {
-        auto word = tm->get_word(word_pointer);
-        return valid_read(word->data);
+        auto versioned_lock = tm->get_versioned_lock(word_pointer);
+        auto version_locked = versioned_lock->get_version_locked();
+        if (version_locked.first > read_version) {
+            return false;
+        }
+        if (locked_set.find(versioned_lock) != locked_set.end()) {
+            return true;
+        }
+        return !version_locked.second;
     });
 }
 
 void Transaction::unlock_write_set() {
     for (auto write : write_set) {
-        auto word = tm->get_word(write.destination);
-        if (word->locked_by_this_thread()) {
-            word->unlock();
+        auto versioned_lock = tm->get_versioned_lock(write.destination);
+        if (locked_set.find(versioned_lock) != locked_set.end()) {
+            versioned_lock->unlock();
+            locked_set.erase(versioned_lock);
         }
     }
 }
 
 void Transaction::write_write_set_and_unlock() {
     for (auto write : write_set) {
-        auto word = tm->get_word(write.destination);
+        auto versioned_lock = tm->get_versioned_lock(write.destination);
         memcpy(write.destination, write.data, tm->align);
-        word->version.store(write_version);
+        if (!versioned_lock->is_locked()) {
+            log("Writing to not locked!");
+        }
+        if (locked_set.find(versioned_lock) == locked_set.end()) {
+            log("Not locked by me!");
+        }
+        versioned_lock->set_version(write_version);
     }
     unlock_write_set();
 }
@@ -134,7 +135,8 @@ bool Transaction::read_only_read(const void *source, std::size_t size, void *tar
         void *cur_source_address = (char *) source + i * tm->align;
         void *cur_target_address = (char *) target + i * tm->align;
         memcpy(cur_target_address, cur_source_address, tm->align);
-        if (!valid_read(cur_source_address)) {
+        VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address);
+        if (!unlocked_and_old(versioned_lock)) {
             return false;
         }
     }
@@ -146,10 +148,6 @@ bool Transaction::read_write_read(const void *source, std::size_t size, void *ta
     for (int i = 0; i < words_n; i++) {
         void* cur_source_address = (char*)source + i * tm->align;
         void* cur_target_address = (char*)target + i * tm->align;
-
-        if (!valid_read(cur_source_address)) {
-            return false;
-        }
 
         read_set.emplace_back(cur_source_address);
 
@@ -165,6 +163,63 @@ bool Transaction::read_write_read(const void *source, std::size_t size, void *ta
         if (!found_in_write_set) {
             memcpy(cur_target_address, cur_source_address, tm->align);
         }
+
+        VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address);
+        if (!unlocked_and_old(versioned_lock)) {
+            return false;
+        }
     }
     return true;
+}
+
+bool Transaction::end_ro() {
+    return true;
+}
+
+bool Transaction::end_wr() {
+    if (!lock_write_set()) {
+        return false;
+    }
+
+    if (!write_set_locked()) {
+        log("Panic!");
+    }
+
+    increment_and_fetch_global_clock();
+
+
+    for (auto write : write_set) {
+        auto vl = tm->get_versioned_lock(write.destination);
+        if (locked_set.find(vl) == locked_set.end()) {
+            log("Write set not locked exhaustively!");
+        }
+    }
+
+    if (read_version >= write_version) {
+        log("Versions mismatch!");
+    }
+
+    if (!validate_read_set()) {
+        unlock_write_set();
+        return false;
+    }
+
+    write_write_set_and_unlock();
+
+    for (auto write : write_set) {
+        auto versioned_lock = tm->get_versioned_lock(write.destination);
+        if (versioned_lock->get_version_locked().first < write_version) {
+            log("Baddy");
+        }
+    }
+
+    return true;
+}
+
+bool Transaction::write_set_locked() {
+    return std::all_of(write_set.begin(), write_set.end(), [this](Write write)
+    {
+        auto versioned_lock = tm->get_versioned_lock(write.destination);
+        return versioned_lock->get_version_locked().second;
+    });
 }

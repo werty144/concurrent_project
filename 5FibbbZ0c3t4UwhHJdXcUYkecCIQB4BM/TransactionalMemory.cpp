@@ -22,11 +22,11 @@ TransactionalMemory::TransactionalMemory(std::size_t size, std::size_t align) {
     reference_segment = (char*)aligned_alloc(align, size);
 }
 
-Word* TransactionalMemory::get_word(void* word_data) const {
+VersionedLock* TransactionalMemory::get_versioned_lock(void* data_address) const {
     // TODO update to several segments
-    long diff = (char*)word_data - start_segment->data;
-    unsigned long word = diff / align;
-    return &start_segment->words[word];
+    long diff = (char*)data_address - start_segment->data;
+    unsigned long index = diff / align;
+    return &start_segment->versioned_locks[index];
 }
 
 bool TransactionalMemory::reference_read(void const*source, void *result_to_check) const {

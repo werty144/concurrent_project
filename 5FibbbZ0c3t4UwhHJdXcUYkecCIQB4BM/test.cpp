@@ -1,30 +1,31 @@
 #include <iostream>
-#include "MemorySegment.hpp"
-#include "tm.hpp"
-#include "TransactionalMemory.hpp"
-#include <cstring>
-#include <cstddef>
 #include <bitset>
-#include "vector"
-#include "Transaction.hpp"
+#include "versioned_lock.h"
 
 using namespace std;
 
-std::ostream& operator<< (std::ostream& os, std::byte b) {
-    return os << std::bitset<8>(std::to_integer<int>(b));
+void print_int(int a) {
+    std::bitset<32> x(a);
+    std::cout << x << '\n';
+}
+
+void print_bool(bool b) {
+    std::bitset<8> x(b);
+    std::cout << x << '\n';
+}
+
+void print_lock(VersionedLock* vls) {
+    cout << vls[0].get_version_locked().first << " " << vls[0].get_version_locked().second << endl;
 }
 
 int main() {
-    auto* tm = new TransactionalMemory(8, 2);
-    char* local_write_buffer = (char*)malloc(4);
-    memset(local_write_buffer, 42, 4);
-
-    auto* tx = new Transaction(tm, false);
-    tx->write(local_write_buffer, 4, tm->start_segment->data);
-
-    byte* local_read_buffer = (byte*)malloc(4);
-    tx->read(tm->start_segment->data, 4, local_read_buffer);
-    for (size_t i = 0; i < 4; i++) {
-        cout << local_read_buffer[i] << endl;
-    }
+    auto* vls = new VersionedLock[1];
+    vls[0].init();
+    print_lock(vls);
+    cout << vls[0].try_lock() << endl;
+    print_lock(vls);
+    vls[0].set_version(228);
+    print_lock(vls);
+    vls[0].unlock();
+    print_lock(vls);
 }

@@ -22,7 +22,7 @@ public:
     int failed_tx = 0;
     TransactionalMemory(std::size_t size, std::size_t align);
     ~TransactionalMemory();
-    Word* get_word(void* word_address) const;
+    VersionedLock* get_versioned_lock(void* data_address) const;
     bool reference_read(void const* source, void* result_to_check) const;
     void reference_write(void const* source, void* target) const;
 };
