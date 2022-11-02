@@ -1,5 +1,5 @@
 /**
- * @file   tm.c
+ * @file   trans_mem.c
  * @author [...]
  *
  * @section LICENSE
@@ -106,12 +106,6 @@ bool tm_end(shared_t shared, tx_t tx) noexcept {
     auto* transaction = (Transaction*) tx;
     bool success = transaction->end();
     transaction->clean_up();
-//    if (!success) {
-//        tm->failed_tx++;
-//        log("Fail rate: " + to_string(tm->failed_tx*1.0/tm->total_txs));
-//    } else {
-////        log("Success");
-//    }
     return success;
 }
 
@@ -129,8 +123,8 @@ bool tm_read(shared_t shared, tx_t tx, void const* source, size_t size, void* ta
     bool success = transaction->read(source, size, target);
     if (!success) {
         transaction->clean_up();
-//        tm->failed_tx++;
-//        log("Fail rate: " + to_string(tm->failed_tx*1.0/tm->total_txs));
+//        trans_mem->failed_tx++;
+//        log("Fail rate: " + to_string(trans_mem->failed_tx*1.0/trans_mem->total_txs));
     }
     return success;
 }

@@ -118,12 +118,6 @@ void Transaction::write_write_set_and_unlock() {
     for (auto write : write_set) {
         auto versioned_lock = tm->get_versioned_lock(write.destination);
         memcpy(write.destination, write.data, tm->align);
-        if (!versioned_lock->is_locked()) {
-            log("Writing to not locked!");
-        }
-        if (locked_set.find(versioned_lock) == locked_set.end()) {
-            log("Not locked by me!");
-        }
         versioned_lock->set_version(write_version);
     }
     unlock_write_set();
@@ -149,6 +143,11 @@ bool Transaction::read_write_read(const void *source, std::size_t size, void *ta
         void* cur_source_address = (char*)source + i * tm->align;
         void* cur_target_address = (char*)target + i * tm->align;
 
+        VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address);
+        if (!unlocked_and_old(versioned_lock)) {
+            return false;
+        }
+
         read_set.emplace_back(cur_source_address);
 
         bool found_in_write_set = false;
@@ -164,10 +163,6 @@ bool Transaction::read_write_read(const void *source, std::size_t size, void *ta
             memcpy(cur_target_address, cur_source_address, tm->align);
         }
 
-        VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address);
-        if (!unlocked_and_old(versioned_lock)) {
-            return false;
-        }
     }
     return true;
 }
@@ -181,23 +176,7 @@ bool Transaction::end_wr() {
         return false;
     }
 
-    if (!write_set_locked()) {
-        log("Panic!");
-    }
-
     increment_and_fetch_global_clock();
-
-
-    for (auto write : write_set) {
-        auto vl = tm->get_versioned_lock(write.destination);
-        if (locked_set.find(vl) == locked_set.end()) {
-            log("Write set not locked exhaustively!");
-        }
-    }
-
-    if (read_version >= write_version) {
-        log("Versions mismatch!");
-    }
 
     if (!validate_read_set()) {
         unlock_write_set();
@@ -205,13 +184,6 @@ bool Transaction::end_wr() {
     }
 
     write_write_set_and_unlock();
-
-    for (auto write : write_set) {
-        auto versioned_lock = tm->get_versioned_lock(write.destination);
-        if (versioned_lock->get_version_locked().first < write_version) {
-            log("Baddy");
-        }
-    }
 
     return true;
 }

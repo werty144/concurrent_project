@@ -1,31 +1,51 @@
 #include <iostream>
 #include <bitset>
 #include "versioned_lock.h"
+#include <thread>
+#include <unistd.h>
+#include "atomic"
+#include "TransactionalMemory.hpp"
+#include "Transaction.hpp"
 
 using namespace std;
 
-void print_int(int a) {
-    std::bitset<32> x(a);
-    std::cout << x << '\n';
+static auto* trans_mem = new TransactionalMemory(16, sizeof(size_t));
+
+void decrease_counter() {
+    bool success = false;
+    while (!success) {
+        auto tx = new Transaction(trans_mem, false);
+        size_t cur_value;
+        bool read_res = tx->read(trans_mem->start_segment->data, sizeof(size_t), &cur_value);
+//        if (!read_res) continue;
+        size_t new_value = cur_value - 1;
+        tx->write(&new_value, sizeof(size_t), trans_mem->start_segment->data);
+        success = tx->end();
+//        if (success && !read_res) {
+//            cout << "oops" << endl;
+//        }
+    }
 }
 
-void print_bool(bool b) {
-    std::bitset<8> x(b);
-    std::cout << x << '\n';
+void job() {
+    for (size_t i = 0; i < 500000; i++) {
+        decrease_counter();
+    }
 }
 
-void print_lock(VersionedLock* vls) {
-    cout << vls[0].get_version_locked().first << " " << vls[0].get_version_locked().second << endl;
-}
 
 int main() {
-    auto* vls = new VersionedLock[1];
-    vls[0].init();
-    print_lock(vls);
-    cout << vls[0].try_lock() << endl;
-    print_lock(vls);
-    vls[0].set_version(228);
-    print_lock(vls);
-    vls[0].unlock();
-    print_lock(vls);
+    auto init_tx = new Transaction(trans_mem, false);
+    size_t init_value = 1000000;
+    init_tx->write(&init_value, sizeof(size_t), trans_mem->start_segment->data);
+    cout << "Initialized: " << init_tx->end() << endl;
+    thread first(job);
+    thread second(job);
+    first.join();
+    second.join();
+
+    auto final_tx = new Transaction(trans_mem, true);
+    size_t res_value;
+    final_tx->read(trans_mem->start_segment->data, sizeof(size_t), &res_value);
+    cout << res_value;
 }

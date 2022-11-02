@@ -19,29 +19,17 @@ bool VersionedLock::try_lock() {
 
 void VersionedLock::unlock() {
     auto version_locked = get_version_locked();
-    if (!version_locked.second) {
-        log("Unlocking unlocked!");
-    }
     v.store(form_version_locked(version_locked.first, false));
 }
 
 void VersionedLock::set_version(int version) {
     auto version_locked = get_version_locked();
-    if (!version_locked.second) {
-        log("Versioning unlocked!");
-    }
-    if (version_locked.first > version) {
-        log("Past version!");
-    }
     v.store(form_version_locked(version, version_locked.second));
 }
 
 std::pair<int, bool> VersionedLock::get_version_locked() {
     int cur_v = v.load();
     auto ret = std::pair(cur_v >> 1, (bool) (cur_v & 1));
-    if (ret.first < 0) {
-        log("Bad version!");
-    }
     return ret;
 }
 
