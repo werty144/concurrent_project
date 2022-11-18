@@ -63,7 +63,7 @@ void tm_destroy(shared_t shared) noexcept {
 **/
 void* tm_start(shared_t shared) noexcept {
     auto* tm = (TransactionalMemory*) shared;
-    return tm->start_segment->data;
+    return TransactionalMemory::create_opaque_data_pointer(tm->start_segment->data, 0);
 }
 
 /** [thread-safe] Return the size (in bytes) of the first allocated segment of the shared memory region.
@@ -91,11 +91,7 @@ size_t tm_align(shared_t shared) noexcept {
 **/
 tx_t tm_begin(shared_t shared, bool is_ro) noexcept {
     auto* tm = (TransactionalMemory*) shared;
-    if (tm->global_lock.load()) {
-        return invalid_tx;
-    }
     auto* transaction = new Transaction(tm, is_ro);
-    atomic_fetch_add(&tm->transactions_running, 1);
     return (tx_t) transaction;
 }
 
@@ -122,8 +118,10 @@ bool tm_end(shared_t shared, tx_t tx) noexcept {
 **/
 bool tm_read(shared_t shared, tx_t tx, void const* source, size_t size, void* target) noexcept {
     auto* tm = (TransactionalMemory*) shared;
+    transparent_data_pointer p = tm->create_transparent_data_pointer(source);
+    uint16_t segment_index = TransactionalMemory::get_pointer_top_digits(source);
     auto* transaction = (Transaction*) tx;
-    bool success = transaction->read(source, size, target);
+    bool success = transaction->read(p, size, target, segment_index);
     if (!success) {
         transaction->clean_up();
     }
@@ -139,8 +137,11 @@ bool tm_read(shared_t shared, tx_t tx, void const* source, size_t size, void* ta
  * @return Whether the whole transaction can continue
 **/
 bool tm_write(shared_t unused(shared), tx_t tx, void const* source, size_t size, void* target) noexcept {
+    auto* tm = (TransactionalMemory*) shared;
+    transparent_data_pointer p = tm->create_transparent_data_pointer(target);
+    uint16_t segment_index = TransactionalMemory::get_pointer_top_digits(target);
     auto* transaction = (Transaction*)tx;
-    transaction->write(source, size, target);
+    transaction->write(source, size, p, segment_index);
     return true;
 }
 
@@ -151,10 +152,14 @@ bool tm_write(shared_t unused(shared), tx_t tx, void const* source, size_t size,
  * @param target Pointer in private memory receiving the address of the first byte of the newly allocated, aligned segment
  * @return Whether the whole transaction can continue (success/nomem), or not (abort_alloc)
 **/
-Alloc tm_alloc(shared_t unused(shared), tx_t unused(tx), size_t unused(size), void** unused(target)) noexcept {
-    // TODO: tm_alloc(shared_t, tx_t, size_t, void**)
-    log("Alloc called");
-    return Alloc::abort;
+Alloc tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void** target) noexcept {
+    auto* tm = (TransactionalMemory*) shared;
+    uint16_t new_index = atomic_fetch_add(&tm->n_segments,1);
+    log(to_string(new_index) + "allocating");
+    auto* segment = new MemorySegment(size, tm->align);
+    tm->segments[new_index] = segment;
+    *target = TransactionalMemory::create_opaque_data_pointer(segment->data, new_index);
+    return Alloc::success;
 }
 
 /** [thread-safe] Memory freeing in the given transaction.
@@ -163,7 +168,21 @@ Alloc tm_alloc(shared_t unused(shared), tx_t unused(tx), size_t unused(size), vo
  * @param target Address of the first byte of the previously allocated segment to deallocate
  * @return Whether the whole transaction can continue
 **/
-bool tm_free(shared_t unused(shared), tx_t unused(tx), void* unused(target)) noexcept {
-    // TODO: tm_free(shared_t, tx_t, void*)
-    return false;
+bool tm_free(shared_t shared, tx_t unused(tx), void* target) noexcept {
+    auto* tm = (TransactionalMemory*) shared;
+    bool expected = false;
+    if (!tm->global_lock.compare_exchange_strong(expected, true)) {
+        return false;
+    }
+    while (tm->transactions_running.load() > 1){
+//        log(to_string(tm->transactions_running.load()));
+    }
+//    log("Out");
+    uint16_t segment_index = TransactionalMemory::get_pointer_top_digits(target);
+    log(to_string(segment_index));
+    MemorySegment* segment = tm->segments[segment_index];
+    delete[] segment->versioned_locks;
+    free(segment->data);
+    tm->global_lock.store(false);
+    return true;
 }

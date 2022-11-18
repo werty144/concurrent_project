@@ -12,6 +12,8 @@
 #include "MemorySegment.hpp"
 
 typedef std::exception tm_creation_exception;
+typedef void* opaque_data_pointer;
+typedef void* transparent_data_pointer;
 
 class TransactionalMemory {
 public:
@@ -22,11 +24,18 @@ public:
     std::atomic_int transactions_running{0};
     std::atomic_bool global_lock{false};
     const std::size_t MAX_SEGMENTS = 1000;
-    std::atomic_size_t n_segments{};
+    std::atomic_uint16_t n_segments{};
     MemorySegment** segments;
+    uint16_t real_segment_address_prefix;
+
     TransactionalMemory(std::size_t size, std::size_t align);
     ~TransactionalMemory();
-    VersionedLock* get_versioned_lock(void* data_address) const;
+    VersionedLock* get_versioned_lock(opaque_data_pointer p, uint16_t segment_index) const;
+
+    static void* create_opaque_data_pointer(transparent_data_pointer p, uint16_t segment_index);
+    void* create_transparent_data_pointer(void const* p) const;
+    static uint16_t get_pointer_top_digits(void const* p);
+    static void* change_pointer_top_digits_to(void const* p, uint16_t n);
 };
 
 

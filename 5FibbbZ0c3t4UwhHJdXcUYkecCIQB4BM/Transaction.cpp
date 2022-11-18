@@ -20,11 +20,11 @@ Transaction::Transaction(TransactionalMemory* tm, bool is_ro) {
     write_version = -1;
 }
 
-bool Transaction::read(void const* source, std::size_t size, void *target) {
+bool Transaction::read(void const* source, std::size_t size, void *target, uint16_t segment_index) {
    if (is_ro) {
-       return read_only_read(source, size, target);
+       return read_only_read(source, size, target, segment_index);
    } else {
-       return read_write_read(source, size, target);
+       return read_write_read(source, size, target, segment_index);
    }
 }
 
@@ -33,7 +33,7 @@ bool Transaction::unlocked_and_old(VersionedLock* versioned_lock) const {
     return !version_locked.second && version_locked.first <= read_version;
 }
 
-void Transaction::write(void const* source, std::size_t size, void *target) {
+void Transaction::write(void const* source, std::size_t size, void *target, uint16_t segment_index) {
     std::size_t n_words = size / tm->align;
     for (std::size_t i = 0; i < n_words; i++) {
         void* new_word = malloc(tm->align);
@@ -45,7 +45,8 @@ void Transaction::write(void const* source, std::size_t size, void *target) {
         write_set.emplace_back(
                 Write {
             (char*)target + i * tm->align,
-            new_word
+            new_word,
+                segment_index
                 }
         );
     }
@@ -68,7 +69,7 @@ bool Transaction::end() {
 
 bool Transaction::lock_write_set() {
     for (auto write : write_set) {
-        auto versioned_lock = tm->get_versioned_lock(write.destination);
+        auto versioned_lock = tm->get_versioned_lock(write.destination, write.segment_index);
         if (locked_set.find(versioned_lock) != locked_set.end()) {
             continue;
         }
@@ -91,9 +92,9 @@ bool Transaction::validate_read_set() {
         return true;
     }
 
-    return std::all_of(read_set.begin(), read_set.end(), [this](void* word_pointer)
+    return std::all_of(read_set.begin(), read_set.end(), [this](Read read)
     {
-        auto versioned_lock = tm->get_versioned_lock(word_pointer);
+        auto versioned_lock = tm->get_versioned_lock(read.data, read.segment_index);
         auto version_locked = versioned_lock->get_version_locked();
         if (version_locked.first > read_version) {
             return false;
@@ -107,7 +108,7 @@ bool Transaction::validate_read_set() {
 
 void Transaction::unlock_write_set() {
     for (auto write : write_set) {
-        auto versioned_lock = tm->get_versioned_lock(write.destination);
+        auto versioned_lock = tm->get_versioned_lock(write.destination, write.segment_index);
         if (locked_set.find(versioned_lock) != locked_set.end()) {
             versioned_lock->unlock();
             locked_set.erase(versioned_lock);
@@ -117,20 +118,20 @@ void Transaction::unlock_write_set() {
 
 void Transaction::write_write_set_and_unlock() {
     for (auto write : write_set) {
-        auto versioned_lock = tm->get_versioned_lock(write.destination);
+        auto versioned_lock = tm->get_versioned_lock(write.destination, write.segment_index);
         memcpy(write.destination, write.data, tm->align);
         versioned_lock->set_version(write_version);
     }
     unlock_write_set();
 }
 
-bool Transaction::read_only_read(const void *source, std::size_t size, void *target) {
+bool Transaction::read_only_read(const void *source, std::size_t size, void *target, uint16_t segment_index) {
     std::size_t words_n = size / tm->align;
     for (int i = 0; i < words_n; i++) {
         void *cur_source_address = (char *) source + i * tm->align;
         void *cur_target_address = (char *) target + i * tm->align;
         memcpy(cur_target_address, cur_source_address, tm->align);
-        VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address);
+        VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address, segment_index);
         if (!unlocked_and_old(versioned_lock)) {
             return false;
         }
@@ -138,18 +139,18 @@ bool Transaction::read_only_read(const void *source, std::size_t size, void *tar
     return true;
 }
 
-bool Transaction::read_write_read(const void *source, std::size_t size, void *target) {
+bool Transaction::read_write_read(const void *source, std::size_t size, void *target, uint16_t segment_index) {
     std::size_t words_n = size / tm->align;
     for (int i = 0; i < words_n; i++) {
         void* cur_source_address = (char*)source + i * tm->align;
         void* cur_target_address = (char*)target + i * tm->align;
 
-        VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address);
+        VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address, segment_index);
         if (!unlocked_and_old(versioned_lock)) {
             return false;
         }
 
-        read_set.emplace_back(cur_source_address);
+        read_set.emplace_back(Read{cur_source_address, segment_index});
 
         bool found_in_write_set = false;
         for (auto write = write_set.rbegin(); write != write_set.rend(); write++) {
@@ -192,7 +193,7 @@ bool Transaction::end_wr() {
 bool Transaction::write_set_locked() {
     return std::all_of(write_set.begin(), write_set.end(), [this](Write write)
     {
-        auto versioned_lock = tm->get_versioned_lock(write.destination);
+        auto versioned_lock = tm->get_versioned_lock(write.destination, write.segment_index);
         return versioned_lock->get_version_locked().second;
     });
 }

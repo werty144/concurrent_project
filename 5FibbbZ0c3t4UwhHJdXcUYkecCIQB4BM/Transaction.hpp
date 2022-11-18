@@ -12,6 +12,12 @@
 struct Write {
     void* destination;
     void* data;
+    uint16_t segment_index;
+};
+
+struct Read {
+    void* data;
+    uint16_t segment_index;
 };
 
 class Transaction {
@@ -20,13 +26,13 @@ public:
     TransactionalMemory* tm;
     int read_version;
     int write_version;
-    std::vector<void*> read_set{};
+    std::vector<Read> read_set{};
     std::vector<Write> write_set{};
     std::set<VersionedLock*> locked_set{};
 
     Transaction(TransactionalMemory* tm, bool is_ro);
-    bool read(void const* source, std::size_t size, void* target);
-    void write(void const* source, std::size_t size, void* target);
+    bool read(void const* source, std::size_t size, void* target, uint16_t segment_index);
+    void write(void const* source, std::size_t size, void* target, uint16_t segment_index);
     bool end();
     void clean_up();
 private:
@@ -37,8 +43,8 @@ private:
     bool validate_read_set();
     void unlock_write_set();
     void write_write_set_and_unlock();
-    bool read_only_read(void const* source, std::size_t size, void* target);
-    bool read_write_read(void const* source, std::size_t size, void* target);
+    bool read_only_read(void const* source, std::size_t size, void* target, uint16_t segment_index);
+    bool read_write_read(void const* source, std::size_t size, void* target, uint16_t segment_index);
     bool end_ro();
     bool end_wr();
 };
