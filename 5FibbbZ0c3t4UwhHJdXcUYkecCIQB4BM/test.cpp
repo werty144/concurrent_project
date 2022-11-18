@@ -9,43 +9,28 @@
 
 using namespace std;
 
-static auto* trans_mem = new TransactionalMemory(16, sizeof(size_t));
-
-void decrease_counter() {
-    bool success = false;
-    while (!success) {
-        auto tx = new Transaction(trans_mem, false);
-        size_t cur_value;
-        bool read_res = tx->read(trans_mem->start_segment->data, sizeof(size_t), &cur_value);
-//        if (!read_res) continue;
-        size_t new_value = cur_value - 1;
-        tx->write(&new_value, sizeof(size_t), trans_mem->start_segment->data);
-        success = tx->end();
-//        if (success && !read_res) {
-//            cout << "oops" << endl;
-//        }
-    }
+void* change_pointer_top_digits_to(void* p, uint16_t n){
+    unsigned long clear_mask = 0b0000000000000000111111111111111111111111111111111111111111111111;
+    return (void*)((unsigned long) p & clear_mask | ((unsigned long)n << 48));
 }
 
-void job() {
-    for (size_t i = 0; i < 500000; i++) {
-        decrease_counter();
-    }
+uint16_t get_pointer_top_digits(void* p) {
+    unsigned long mask = 0b1111111111111111000000000000000000000000000000000000000000000000;
+    return ((unsigned long) p & mask) >> 48;
 }
 
 
 int main() {
-    auto init_tx = new Transaction(trans_mem, false);
-    size_t init_value = 1000000;
-    init_tx->write(&init_value, sizeof(size_t), trans_mem->start_segment->data);
-    cout << "Initialized: " << init_tx->end() << endl;
-    thread first(job);
-    thread second(job);
-    first.join();
-    second.join();
-
-    auto final_tx = new Transaction(trans_mem, true);
-    size_t res_value;
-    final_tx->read(trans_mem->start_segment->data, sizeof(size_t), &res_value);
-    cout << res_value;
+    int v = 5;
+    void* p = &v;
+    void* p1 = new int[5];
+    void* p2 = new int[5];
+    cout << p << " " << (unsigned long) p << endl;
+    unsigned long correct = get_pointer_top_digits(p);
+    cout << correct << endl;
+    void* res = change_pointer_top_digits_to(p, 64);
+    cout << res << endl;
+    cout << (void*)((char*) res + 1) << endl;
+    cout << (int)get_pointer_top_digits(res) << endl;
+    cout << change_pointer_top_digits_to(res, correct);
 }

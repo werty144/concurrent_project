@@ -55,6 +55,7 @@ void Transaction::clean_up() {
     for (auto write : write_set) {
         free(write.data);
     }
+    atomic_fetch_sub(&tm->transactions_running, 1);
 }
 
 bool Transaction::end() {

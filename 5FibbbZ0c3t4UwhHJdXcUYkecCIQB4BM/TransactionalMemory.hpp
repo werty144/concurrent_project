@@ -7,6 +7,8 @@
 
 #include <exception>
 #include "atomic"
+#include <vector>
+
 #include "MemorySegment.hpp"
 
 typedef std::exception tm_creation_exception;
@@ -17,14 +19,14 @@ public:
     size_t size;
     size_t align;
     std::atomic_int global_clock{0};
-    char* reference_segment;
-    int total_txs = 0;
-    int failed_tx = 0;
+    std::atomic_int transactions_running{0};
+    std::atomic_bool global_lock{false};
+    const std::size_t MAX_SEGMENTS = 1000;
+    std::atomic_size_t n_segments{};
+    MemorySegment** segments;
     TransactionalMemory(std::size_t size, std::size_t align);
     ~TransactionalMemory();
     VersionedLock* get_versioned_lock(void* data_address) const;
-    bool reference_read(void const* source, void* result_to_check) const;
-    void reference_write(void const* source, void* target) const;
 };
 
 

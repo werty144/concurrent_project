@@ -91,8 +91,11 @@ size_t tm_align(shared_t shared) noexcept {
 **/
 tx_t tm_begin(shared_t shared, bool is_ro) noexcept {
     auto* tm = (TransactionalMemory*) shared;
-    tm->total_txs++;
+    if (tm->global_lock.load()) {
+        return invalid_tx;
+    }
     auto* transaction = new Transaction(tm, is_ro);
+    atomic_fetch_add(&tm->transactions_running, 1);
     return (tx_t) transaction;
 }
 
@@ -123,8 +126,6 @@ bool tm_read(shared_t shared, tx_t tx, void const* source, size_t size, void* ta
     bool success = transaction->read(source, size, target);
     if (!success) {
         transaction->clean_up();
-//        trans_mem->failed_tx++;
-//        log("Fail rate: " + to_string(trans_mem->failed_tx*1.0/trans_mem->total_txs));
     }
     return success;
 }
@@ -140,7 +141,6 @@ bool tm_read(shared_t shared, tx_t tx, void const* source, size_t size, void* ta
 bool tm_write(shared_t unused(shared), tx_t tx, void const* source, size_t size, void* target) noexcept {
     auto* transaction = (Transaction*)tx;
     transaction->write(source, size, target);
-//    ((TransactionalMemory*)shared)->reference_write(source, target);
     return true;
 }
 
