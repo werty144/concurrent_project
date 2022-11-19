@@ -26,3 +26,8 @@ MemorySegment::MemorySegment(std::size_t size, std::size_t align) {
 bool MemorySegment::contains_address(const void *addr) const {
     return data <= (char*) addr && (char*) addr <  data + size;
 }
+
+void MemorySegment::free() const {
+    std::free(data);
+    delete[] versioned_locks;
+}

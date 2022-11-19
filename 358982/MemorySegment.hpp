@@ -19,6 +19,7 @@ public:
     VersionedLock* versioned_locks;
     MemorySegment(std::size_t size, std::size_t align);
     bool contains_address(const void* addr) const;
+    void free() const;
 };
 
 #endif //CONCURRENT_PROJECT_MEMORYSEGMENT_HPP
