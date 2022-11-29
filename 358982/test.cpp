@@ -21,16 +21,7 @@ uint16_t get_pointer_top_digits(void* p) {
 
 
 int main() {
-    int v = 5;
-    void* p = &v;
-    void* p1 = new int[5];
-    void* p2 = new int[5];
-    cout << p << " " << (unsigned long) p << endl;
-    unsigned long correct = get_pointer_top_digits(p);
-    cout << correct << endl;
-    void* res = change_pointer_top_digits_to(p, 64);
-    cout << res << endl;
-    cout << (void*)((char*) res + 1) << endl;
-    cout << (int)get_pointer_top_digits(res) << endl;
-    cout << change_pointer_top_digits_to(res, correct);
+//    MemorySegment* segment = new MemorySegment(8, 2);
+//    cout << (unsigned long) segment << endl;
+//    cout <<
 }

@@ -43,7 +43,7 @@ private:
     bool validate_read_set();
     void unlock_write_set();
     void write_write_set_and_unlock();
-    bool read_only_read(void const* source, std::size_t size, void* target, uint16_t segment_index);
+    bool read_only_read(void const* source, std::size_t size, void* target, uint16_t segment_index) const;
     bool read_write_read(void const* source, std::size_t size, void* target, uint16_t segment_index);
     bool end_ro();
     bool end_wr();

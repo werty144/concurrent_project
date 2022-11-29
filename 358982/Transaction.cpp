@@ -124,14 +124,14 @@ void Transaction::write_write_set_and_unlock() {
     unlock_write_set();
 }
 
-bool Transaction::read_only_read(const void *source, std::size_t size, void *target, uint16_t segment_index) {
+bool Transaction::read_only_read(const void *source, std::size_t size, void *target, uint16_t segment_index) const {
     std::size_t words_n = size / tm->align;
     for (int i = 0; i < words_n; i++) {
         void *cur_source_address = (char *) source + i * tm->align;
         void *cur_target_address = (char *) target + i * tm->align;
         memcpy(cur_target_address, cur_source_address, tm->align);
         VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address, segment_index);
-        if (!unlocked_and_old(versioned_lock)) {
+        if (!versioned_lock->unlocked_and_old(read_version)) {
             return false;
         }
     }

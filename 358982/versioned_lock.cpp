@@ -42,3 +42,8 @@ bool VersionedLock::is_locked() {
     return get_version_locked().second;
 }
 
+bool VersionedLock::unlocked_and_old(int version_to_compare) {
+    int cur_v = v.load();
+    return (!((bool) (cur_v & 1))) && ((cur_v >> 1) <= version_to_compare);
+}
+

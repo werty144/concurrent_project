@@ -19,6 +19,7 @@ public:
     void unlock();
     void set_version(int version);
     bool is_locked();
+    bool unlocked_and_old(int version_to_compare);
 };
 
 #endif //CONCURRENT_PROJECT_VERSIONED_LOCK_H
