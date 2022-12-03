@@ -21,9 +21,12 @@ TransactionalMemory::TransactionalMemory(std::size_t size, std::size_t align) {
     }
 
     segments = new MemorySegment* [MAX_SEGMENTS];
+    segment_status = new size_t [MAX_SEGMENTS];
     segments[0] = start_segment;
+    segment_status[0] = SegmentStatus::IN_USE;
     for (std::size_t i = 1; i < MAX_SEGMENTS; i++) {
         segments[i] = nullptr;
+        segment_status[i] = SegmentStatus::ABSENT;
     }
     n_segments.store(1);
 
@@ -53,4 +56,20 @@ uint16_t TransactionalMemory::get_pointer_top_digits(void const* p) {
 void *TransactionalMemory::change_pointer_top_digits_to(void const *p, uint16_t n) {
     unsigned long clear_mask = 0b0000000000000000111111111111111111111111111111111111111111111111;
     return (void*)((unsigned long) p & clear_mask | ((unsigned long)n << 48));
+}
+
+void TransactionalMemory::free_marked_segments_if_time() {
+    if (transactions_committed_since_last_free.load() < CLEANING_PERIOD) return;
+
+    while (!lock.try_lock()){};
+
+    for (std::size_t i = 0; i < MAX_SEGMENTS; i++) {
+        if (segment_status[i] == SegmentStatus::TO_BE_DELETED) {
+            segments[i]->free();
+            segments[i] = nullptr;
+            segment_status[i] = SegmentStatus::DELETED;
+        }
+    }
+    transactions_committed_since_last_free.store(0);
+    lock.unlock();
 }

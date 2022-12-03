@@ -36,14 +36,13 @@ public:
     bool end();
     void clean_up();
 private:
-    bool write_set_locked();
     bool unlocked_and_old(VersionedLock* word_data) const;
     bool lock_write_set();
     void increment_and_fetch_global_clock();
     bool validate_read_set();
     void unlock_write_set();
     void write_write_set_and_unlock();
-    bool read_only_read(void const* source, std::size_t size, void* target, uint16_t segment_index) const;
+    bool read_only_read(void const* source, std::size_t size, void* target, uint16_t segment_index);
     bool read_write_read(void const* source, std::size_t size, void* target, uint16_t segment_index);
     bool end_ro();
     bool end_wr();

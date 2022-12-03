@@ -7,13 +7,24 @@
 
 #include <exception>
 #include "atomic"
-#include <vector>
+#include <mutex>
+#include <shared_mutex>
 
+#include <vector>
 #include "MemorySegment.hpp"
 
+typedef std::shared_mutex Lock;
 typedef std::exception tm_creation_exception;
 typedef void* opaque_data_pointer;
 typedef void* transparent_data_pointer;
+
+struct SegmentStatus {
+public:
+    static const std::size_t ABSENT = 0;
+    static const std::size_t IN_USE = 1;
+    static const std::size_t TO_BE_DELETED = 2;
+    static const std::size_t DELETED = 3;
+};
 
 class TransactionalMemory {
 public:
@@ -21,8 +32,10 @@ public:
     size_t size;
     size_t align;
     std::atomic_int global_clock{0};
-    std::atomic_int transactions_running{0};
-    std::atomic_bool global_lock{false};
+    Lock lock;
+    std::atomic_int transactions_committed_since_last_free{0};
+    const std::size_t CLEANING_PERIOD = 100000;
+    std::size_t* segment_status;
     const std::size_t MAX_SEGMENTS = 1000;
     std::atomic_uint16_t n_segments{};
     MemorySegment** segments;
@@ -36,6 +49,7 @@ public:
     void* create_transparent_data_pointer(void const* p) const;
     static uint16_t get_pointer_top_digits(void const* p);
     static void* change_pointer_top_digits_to(void const* p, uint16_t n);
+    void free_marked_segments_if_time();
 };
 
 

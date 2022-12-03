@@ -55,10 +55,12 @@ shared_t tm_create(size_t size, size_t align) noexcept {
 void tm_destroy(shared_t shared) noexcept {
     auto* tm = (TransactionalMemory*) shared;
     for (size_t i = 0; i < tm->MAX_SEGMENTS; i++) {
-        if (tm->segments[i] != nullptr) {
+        if (tm->segment_status[i] == SegmentStatus::IN_USE) {
             tm->segments[i]->free();
         }
     }
+    delete[] tm->segment_status;
+    delete[] tm->segments;
 }
 
 /** [thread-safe] Return the start_segment address of the first allocated segment in the shared memory region.
@@ -95,6 +97,8 @@ size_t tm_align(shared_t shared) noexcept {
 **/
 tx_t tm_begin(shared_t shared, bool is_ro) noexcept {
     auto* tm = (TransactionalMemory*) shared;
+    tm->free_marked_segments_if_time();
+    while (!tm->lock.try_lock_shared()){}
     auto* transaction = new Transaction(tm, is_ro);
     return (tx_t) transaction;
 }
@@ -109,6 +113,8 @@ bool tm_end(shared_t shared, tx_t tx) noexcept {
     auto* transaction = (Transaction*) tx;
     bool success = transaction->end();
     transaction->clean_up();
+    tm->transactions_committed_since_last_free.fetch_add(1);
+    delete transaction;
     return success;
 }
 
@@ -128,6 +134,7 @@ bool tm_read(shared_t shared, tx_t tx, void const* source, size_t size, void* ta
     bool success = transaction->read(p, size, target, segment_index);
     if (!success) {
         transaction->clean_up();
+        delete transaction;
     }
     return success;
 }
@@ -159,9 +166,9 @@ bool tm_write(shared_t unused(shared), tx_t tx, void const* source, size_t size,
 Alloc tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void** target) noexcept {
     auto* tm = (TransactionalMemory*) shared;
     uint16_t new_index = atomic_fetch_add(&tm->n_segments,1);
-//    log(to_string(new_index) + "allocating");
     auto* segment = new MemorySegment(size, tm->align);
     tm->segments[new_index] = segment;
+    tm->segment_status[new_index] = SegmentStatus::IN_USE;
     *target = TransactionalMemory::create_opaque_data_pointer(segment->data, new_index);
     return Alloc::success;
 }
@@ -173,20 +180,8 @@ Alloc tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void** target) noe
  * @return Whether the whole transaction can continue
 **/
 bool tm_free(shared_t shared, tx_t unused(tx), void* target) noexcept {
-//    auto* tm = (TransactionalMemory*) shared;
-//    bool expected = false;
-//    if (!tm->global_lock.compare_exchange_strong(expected, true)) {
-//        return false;
-//    }
-//    while (tm->transactions_running.load() > 1){
-////        log(to_string(tm->transactions_running.load()));
-//    }
-////    log("Out");
-//    uint16_t segment_index = TransactionalMemory::get_pointer_top_digits(target);
-//    log(to_string(segment_index));
-//    MemorySegment* segment = tm->segments[segment_index];
-//    delete[] segment->versioned_locks;
-//    free(segment->data);
-//    tm->global_lock.store(false);
+    auto* tm = (TransactionalMemory*) shared;
+    uint16_t segment_index = TransactionalMemory::get_pointer_top_digits(target);
+    tm->segment_status[segment_index] = SegmentStatus::TO_BE_DELETED;
     return true;
 }

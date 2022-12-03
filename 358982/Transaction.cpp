@@ -56,6 +56,8 @@ void Transaction::clean_up() {
     for (auto write : write_set) {
         free(write.data);
     }
+    read_set.clear();
+    tm->lock.unlock_shared();
 }
 
 bool Transaction::end() {
@@ -124,16 +126,20 @@ void Transaction::write_write_set_and_unlock() {
     unlock_write_set();
 }
 
-bool Transaction::read_only_read(const void *source, std::size_t size, void *target, uint16_t segment_index) const {
+bool Transaction::read_only_read(const void *source, std::size_t size, void *target, uint16_t segment_index) {
     std::size_t words_n = size / tm->align;
     for (int i = 0; i < words_n; i++) {
         void *cur_source_address = (char *) source + i * tm->align;
         void *cur_target_address = (char *) target + i * tm->align;
         memcpy(cur_target_address, cur_source_address, tm->align);
         VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address, segment_index);
-        if (!versioned_lock->unlocked_and_old(read_version)) {
-            return false;
+        while (!versioned_lock->unlocked_and_old(read_version)) {
+            int current_time = tm->global_clock.load();
+            if (!validate_read_set()) return false;
+            read_version = current_time;
+            memcpy(cur_target_address, cur_source_address, tm->align);
         }
+        read_set.emplace_back(Read{cur_source_address, segment_index});
     }
     return true;
 }
@@ -187,12 +193,4 @@ bool Transaction::end_wr() {
     write_write_set_and_unlock();
 
     return true;
-}
-
-bool Transaction::write_set_locked() {
-    return std::all_of(write_set.begin(), write_set.end(), [this](Write write)
-    {
-        auto versioned_lock = tm->get_versioned_lock(write.destination, write.segment_index);
-        return versioned_lock->get_version_locked().second;
-    });
 }

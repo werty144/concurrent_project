@@ -9,19 +9,41 @@
 
 using namespace std;
 
-void* change_pointer_top_digits_to(void* p, uint16_t n){
-    unsigned long clear_mask = 0b0000000000000000111111111111111111111111111111111111111111111111;
-    return (void*)((unsigned long) p & clear_mask | ((unsigned long)n << 48));
+shared_mutex my_lock;
+
+void take_lock_shared_and_sleep() {
+    bool res = my_lock.try_lock_shared();
+    cout << this_thread::get_id() << " got shared lock: " << res << ". Sleeping" << endl;
+    this_thread::sleep_for(std::chrono::milliseconds(2000));
+    cout << this_thread::get_id() << " awake. Releasing lock" << endl;
+    my_lock.unlock_shared();
 }
 
-uint16_t get_pointer_top_digits(void* p) {
-    unsigned long mask = 0b1111111111111111000000000000000000000000000000000000000000000000;
-    return ((unsigned long) p & mask) >> 48;
+void take_lock_shared() {
+    bool res = my_lock.try_lock_shared();
+    cout << this_thread::get_id() << " got shared lock: " << res << endl;
+    cout << this_thread::get_id() << " Releasing lock" << endl;
+    my_lock.unlock_shared();
 }
+
+void take_lock_unique_and_sleep() {
+    while (!my_lock.try_lock()){}
+    cout << this_thread::get_id() << " got unique lock" << endl;
+    this_thread::sleep_for(std::chrono::milliseconds(2000));
+    cout << this_thread::get_id() << " awake" << endl;
+    my_lock.unlock();
+}
+
 
 
 int main() {
-//    MemorySegment* segment = new MemorySegment(8, 2);
-//    cout << (unsigned long) segment << endl;
-//    cout <<
+    cout << "Start" << endl;
+    thread t1(take_lock_shared_and_sleep);
+    thread t2(take_lock_shared);
+    thread t3(take_lock_unique_and_sleep);
+
+    t1.join();
+    t2.join();
+    t3.join();
+    this_thread::sleep_for(std::chrono::milliseconds(2000));
 }
