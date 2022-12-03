@@ -61,15 +61,25 @@ void *TransactionalMemory::change_pointer_top_digits_to(void const *p, uint16_t 
 void TransactionalMemory::free_marked_segments_if_time() {
     if (transactions_committed_since_last_free.load() < CLEANING_PERIOD) return;
 
-    while (!lock.try_lock()){};
+    while (!freeing_lock.try_lock()){};
 
     for (std::size_t i = 0; i < MAX_SEGMENTS; i++) {
         if (segment_status[i] == SegmentStatus::TO_BE_DELETED) {
             segments[i]->free();
-            segments[i] = nullptr;
+            delete segments[i];
             segment_status[i] = SegmentStatus::DELETED;
         }
     }
     transactions_committed_since_last_free.store(0);
-    lock.unlock();
+    freeing_lock.unlock();
+}
+
+void TransactionalMemory::realloc_segments(std::uint16_t new_index) {
+    while (!allocating_lock.try_lock()) {
+        if (MAX_SEGMENTS < new_index) return;
+    }
+    segments = (MemorySegment**) realloc(segments, sizeof(MemorySegment*) * MAX_SEGMENTS * 2);
+    segment_status = (std::size_t*) realloc(segment_status, sizeof(std::size_t) * MAX_SEGMENTS * 2);
+    MAX_SEGMENTS = MAX_SEGMENTS * 2;
+    allocating_lock.unlock();
 }

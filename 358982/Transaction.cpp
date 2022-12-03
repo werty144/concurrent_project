@@ -18,6 +18,8 @@ Transaction::Transaction(TransactionalMemory* tm, bool is_ro) {
     this->is_ro = is_ro;
     read_version = tm->global_clock.load();
     write_version = -1;
+    read_set.reserve(2100);
+    write_set.reserve(3);
 }
 
 bool Transaction::read(void const* source, std::size_t size, void *target, uint16_t segment_index) {
@@ -57,7 +59,7 @@ void Transaction::clean_up() {
         free(write.data);
     }
     read_set.clear();
-    tm->lock.unlock_shared();
+    tm->freeing_lock.unlock_shared();
 }
 
 bool Transaction::end() {
@@ -133,11 +135,14 @@ bool Transaction::read_only_read(const void *source, std::size_t size, void *tar
         void *cur_target_address = (char *) target + i * tm->align;
         memcpy(cur_target_address, cur_source_address, tm->align);
         VersionedLock* versioned_lock = tm->get_versioned_lock(cur_source_address, segment_index);
+        int retries = 0;
         while (!versioned_lock->unlocked_and_old(read_version)) {
             int current_time = tm->global_clock.load();
             if (!validate_read_set()) return false;
             read_version = current_time;
             memcpy(cur_target_address, cur_source_address, tm->align);
+            retries++;
+            if (retries == RO_RETRIES) return false;
         }
         read_set.emplace_back(Read{cur_source_address, segment_index});
     }

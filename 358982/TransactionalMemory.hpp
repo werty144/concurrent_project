@@ -32,11 +32,12 @@ public:
     size_t size;
     size_t align;
     std::atomic_int global_clock{0};
-    Lock lock;
+    Lock freeing_lock;
+    Lock allocating_lock;
     std::atomic_int transactions_committed_since_last_free{0};
     const std::size_t CLEANING_PERIOD = 100000;
     std::size_t* segment_status;
-    const std::size_t MAX_SEGMENTS = 1000;
+    std::size_t MAX_SEGMENTS = 1000;
     std::atomic_uint16_t n_segments{};
     MemorySegment** segments;
     uint16_t real_segment_address_prefix;
@@ -50,6 +51,7 @@ public:
     static uint16_t get_pointer_top_digits(void const* p);
     static void* change_pointer_top_digits_to(void const* p, uint16_t n);
     void free_marked_segments_if_time();
+    void realloc_segments(std::uint16_t);
 };
 
 

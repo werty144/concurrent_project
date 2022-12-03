@@ -57,6 +57,7 @@ void tm_destroy(shared_t shared) noexcept {
     for (size_t i = 0; i < tm->MAX_SEGMENTS; i++) {
         if (tm->segment_status[i] == SegmentStatus::IN_USE) {
             tm->segments[i]->free();
+            delete tm->segments[i];
         }
     }
     delete[] tm->segment_status;
@@ -98,7 +99,7 @@ size_t tm_align(shared_t shared) noexcept {
 tx_t tm_begin(shared_t shared, bool is_ro) noexcept {
     auto* tm = (TransactionalMemory*) shared;
     tm->free_marked_segments_if_time();
-    while (!tm->lock.try_lock_shared()){}
+    while (!tm->freeing_lock.try_lock_shared()){}
     auto* transaction = new Transaction(tm, is_ro);
     return (tx_t) transaction;
 }
@@ -166,6 +167,9 @@ bool tm_write(shared_t unused(shared), tx_t tx, void const* source, size_t size,
 Alloc tm_alloc(shared_t shared, tx_t unused(tx), size_t size, void** target) noexcept {
     auto* tm = (TransactionalMemory*) shared;
     uint16_t new_index = atomic_fetch_add(&tm->n_segments,1);
+    if (new_index >= tm->MAX_SEGMENTS) {
+        tm->realloc_segments(new_index);
+    }
     auto* segment = new MemorySegment(size, tm->align);
     tm->segments[new_index] = segment;
     tm->segment_status[new_index] = SegmentStatus::IN_USE;

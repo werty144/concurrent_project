@@ -26,6 +26,7 @@ public:
     TransactionalMemory* tm;
     int read_version;
     int write_version;
+    const int RO_RETRIES = 10;
     std::vector<Read> read_set{};
     std::vector<Write> write_set{};
     std::set<VersionedLock*> locked_set{};
